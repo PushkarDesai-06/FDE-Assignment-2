@@ -1,0 +1,69 @@
+# Pipeline configuration.
+# Every threshold the pipeline enforces lives here, not in code, so that a
+# reviewer can see and change the judgement calls in one place.
+
+run:
+  months: ["2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06"]
+  fleets: ["yellow", "green"]
+
+paths:
+  raw: "data/raw"
+  staging: "data/staging"
+  marts: "data/marts"
+  warehouse: "data/warehouse.duckdb"
+  logs: "logs"
+
+sources:
+  trips:
+    # TLC publishes one Parquet file per fleet per month on CloudFront.
+    url_template: "https://d37ci6vzurychx.cloudfront.net/trip-data/{fleet}_tripdata_{month}.parquet"
+    owner: "NYC Taxi & Limousine Commission (TLC)"
+  zone_lookup:
+    url: "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+    owner: "NYC TLC"
+  weather:
+    # Open-Meteo historical archive. Coordinates are Central Park, the
+    # reference station for "NYC weather".
+    url: "https://archive-api.open-meteo.com/v1/archive"
+    latitude: 40.7794
+    longitude: -73.9692
+    timezone: "America/New_York"
+    hourly: ["temperature_2m", "precipitation", "snowfall"]
+    owner: "Open-Meteo (ERA5 reanalysis)"
+
+retrieval:
+  max_retries: 3
+  backoff_seconds: 2
+  timeout_seconds: 300
+
+# --- Business thresholds (judgement calls, see docs/validation_rules.md) ---
+thresholds:
+  congested_speed_mph: 8.0      # KPI cut-off: below this a trip counts as congested
+  min_duration_min: 1.0
+  max_duration_min: 180.0
+  min_distance_mi: 0.0          # exclusive: distance must be > 0
+  max_distance_mi: 100.0
+  max_speed_mph: 80.0           # above this the trip record is implausible
+  wet_hour_precip_mm: 0.1       # an hour counts as wet at or above this
+
+unknown_zone_ids: [264, 265]
+airport_zone_ids: [1, 132, 138]   # EWR, JFK, LaGuardia
+
+# --- Completeness / abort limits ---
+# Observed rates on 2024-01 yellow are given for context; limits carry
+# deliberate headroom so that normal noise does not fail a run, but a
+# structural break (a bad file, a schema change) does.
+checks:
+  max_pct_outside_month: 1.0        # observed ~0.001%
+  min_pct_inside_month: 99.0
+  row_count_tolerance_pct: 30.0     # vs previous month, when no official total
+  min_join_match_pct: 99.9          # trip -> zone / weather joins
+  rule_abort_limits_pct:
+    V01_dropoff_before_pickup: 5.0  # observed 0.029%
+    V02_duration_out_of_range: 10.0 # observed 1.25%
+    V03_distance_out_of_range: 10.0 # observed 2.04%
+    V04_implausible_speed: 5.0      # observed 0.037%
+    V05_pickup_outside_month: 5.0   # observed 0.001%
+    V06_unknown_zone: 10.0          # observed 1.06%
+    V07_negative_total: 10.0        # observed 1.20%
+    V08_missing_passenger_count: 25.0  # observed 5.79%, flag-only

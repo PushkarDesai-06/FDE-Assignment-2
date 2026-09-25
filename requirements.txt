@@ -1,0 +1,15 @@
+# Core pipeline
+duckdb==1.5.5
+polars==1.44.2
+requests==2.34.2
+PyYAML==6.0.3
+
+# Analysis notebooks
+pandas==3.0.6
+matplotlib==3.11.2
+jupyter==1.1.1
+nbconvert==7.17.1
+ipykernel==7.3.0
+
+# Tests
+pytest==9.1.1

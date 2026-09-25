@@ -1,0 +1,12 @@
+# Raw + derived data are reproducible from the pipeline; never commit them.
+data/raw/
+data/staging/
+data/marts/
+data/*.duckdb
+data/*.duckdb.wal
+logs/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/

@@ -1,0 +1,9 @@
+[project]
+name = "nyc-tlc-trip-efficiency"
+version = "1.0.0"
+description = "FDE Assignment 2 - from raw TLC extracts to a dependable trip-efficiency KPI"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
