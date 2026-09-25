@@ -13,8 +13,9 @@ ingest ──▶ completeness ──▶ validate ──▶ model ──▶ metri
  (SHA-256)   failure    never delete            by month
 ```
 
-**20.7M trips · 6 months · 2 fleets · 3 retrieval modes · 190 automated checks ·
-78 seconds end to end**
+**20.7M trips · 6 months · 2 fleets · 3 retrieval modes · 190 automated checks**
+
+*Rebuilds all six months from raw in **60s**; ~80s including the first download of 335 MB.*
 
 ---
 
@@ -98,7 +99,7 @@ Full reasoning, ownership and gaps: [`docs/source_map.md`](docs/source_map.md)
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Full rebuild from nothing: downloads ~335 MB, takes ~80s
+# Full rebuild from nothing: downloads ~335 MB, ~80s (60s once cached)
 PYTHONPATH=src python -m pipeline.run --all
 
 # One month
