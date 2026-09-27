@@ -1,9 +1,10 @@
 # NYC Taxi Trip-Efficiency Pipeline
 
-**FDE Data Foundations — Assignment 2, Track B (NYC TLC)**
+**FDE Data Foundations, Assignment 2, Track B (NYC TLC)**
 
-From messy, multi-system source extracts to a dependable, repeatable KPI that
-tells NYC TLC operations **where and when to intervene in street congestion**.
+This project turns raw, multi-source NYC taxi extracts into a dependable,
+repeatable KPI that tells NYC TLC operations **where and when to intervene in
+street congestion**.
 
 ```
 ingest ──▶ completeness ──▶ validate ──▶ model ──▶ metrics
@@ -15,18 +16,18 @@ ingest ──▶ completeness ──▶ validate ──▶ model ──▶ metri
 
 **20.7M trips · 6 months · 2 fleets · 3 retrieval modes · 190 automated checks**
 
-*Rebuilds all six months from raw in **60s**; ~80s including the first download of 335 MB.*
+*All six months rebuild from raw in **60s**, or about 80s including the first
+download of 335 MB.*
 
 ---
 
 ## 1. The problem
 
 TLC operations has a budget for curb management, signal retiming and dispatch
-policy, and no defensible way to decide **where to spend it**. Trip data exists,
-but it is split across two fleets with incompatible schemas, contains physically
-impossible records, and carries no weather context — so the obvious question
-*"is this congestion, or is it just raining?"* cannot be answered from it as
-delivered.
+policy, but no defensible way to decide **where to spend it**. The trip data
+exists, yet it is split across two fleets with incompatible schemas, contains
+physically impossible records, and carries no weather context. As delivered, it
+cannot answer the obvious question: *is this congestion, or is it just raining?*
 
 ### Users and stakeholders
 
@@ -38,19 +39,19 @@ delivered.
 
 ### The KPI
 
-> **Congested trip rate** — the share of valid trips whose average speed is
-> below **8 mph**.
+> **Congested trip rate:** the share of valid trips whose average speed is below
+> **8 mph**.
 
-Average speed is the only defensible congestion proxy these fields support:
-duration alone cannot tell a *long* trip from a *slow* one. The 8 mph line is
-calibrated to the data — median trip speed is 9.7 mph — and lives in
-`config/pipeline.yaml`, not in code. **Its sensitivity is measured and published;
-see §6.**
+Average speed is the only defensible congestion proxy these fields support,
+because duration alone cannot tell a *long* trip from a *slow* one. The 8 mph
+threshold is calibrated to the data (the median trip speed is 9.7 mph) and is
+set in `config/pipeline.yaml` rather than in code. Its sensitivity is measured
+and published in §6.
 
 ### The decision it supports
 
-Rank zones and hours for intervention, then measure month over month whether the
-intervention moved the number.
+The KPI ranks zones and hours for intervention, and then shows month over month
+whether an intervention moved the number.
 
 ---
 
@@ -58,14 +59,14 @@ intervention moved the number.
 
 | # | Finding |
 |---|---|
-| **1** | **Manhattan midday is the worst segment in the city** — weekday 11:00–15:00 runs **57.3%** congested vs **44.3%** for the 17:00–19:00 evening peak. Congestion is a *midday* problem, not a rush-hour one. |
-| **2** | Congestion **rose 6.4 points** from January (31.5%) to its May peak (37.9%). |
-| **3** | Queens looks excellent (2.8%) but that is an **airport artefact** — airport runs are highway trips averaging 23.1 mph. Not free-flowing streets. |
-| **4** | **Rain is real but secondary**: +5.0pp and −5.7% network speed. Congestion here is mostly structural. |
-| **5** | **The upstream feed broke in March 2024** — missing `passenger_count` doubled from 5.8% to ~12.5%. Caught by the pipeline; the KPI was unaffected *by design* (see §6). |
+| **1** | **Manhattan at midday is the most congested segment in the city.** Weekdays from 11:00 to 15:00 run **57.3%** congested, compared with **44.3%** for the 17:00–19:00 evening peak. Congestion is a *midday* problem rather than a rush-hour one. |
+| **2** | Congestion **rose 6.4 points** from January (31.5%) to a peak in May (37.9%). |
+| **3** | Queens appears to have almost no congestion (2.8%), but this is an **airport effect**. Airport runs are mostly highway trips averaging 23.1 mph, so the figure does not reflect free-flowing streets. |
+| **4** | **Rain has a real but secondary effect**, adding 5.0 points of congestion and reducing network speed by 5.7%. Most congestion is structural. |
+| **5** | **The upstream feed changed in March 2024**, and missing `passenger_count` values doubled from 5.8% to about 12.5%. The pipeline detected the change, and the KPI was unaffected by design (see §6). |
 
-Finding 1 is the actionable one: it points enforcement at the middle of the day,
-which is not where an intuition-led programme would aim first.
+Finding 1 is the most actionable: it directs enforcement to the middle of the
+day, which is not where an intuition-led programme would focus first.
 
 Full table: [`docs/evidence_table.md`](docs/evidence_table.md) · Charts:
 [`notebooks/05_metrics_dashboard.ipynb`](notebooks/05_metrics_dashboard.ipynb)
@@ -80,16 +81,17 @@ Full table: [`docs/evidence_table.md`](docs/evidence_table.md) · Charts:
 | Green taxi trips | **FILE** (Parquet/HTTPS) | 1 row / trip (~56k/mo) | NYC TLC |
 | Taxi zone lookup | **FILE** (CSV) | 1 row / zone (265) | NYC TLC |
 | Hourly NYC weather | **API** (REST/JSON) | 1 row / hour | Open-Meteo (ERA5) |
-| *(all of the above)* | **SQL** | — | DuckDB |
+| All of the above | **SQL** | n/a | DuckDB |
 
-**The two fleets do not share a schema.** Yellow uses `tpep_*` timestamps, green
-uses `lpep_*`; green adds `ehail_fee`/`trip_type`; yellow's airport-fee column
-changes capitalisation between months. Reconciling them is a real piece of source
-work, not a formality — it is contained in
-[`src/pipeline/schema.py`](src/pipeline/schema.py) and enforced by a check, so a
-future schema change fails loudly rather than producing a column of NULLs.
+**The two fleets do not share a schema.** Yellow uses `tpep_*` timestamps and
+green uses `lpep_*`. Green adds `ehail_fee` and `trip_type`, and the
+capitalisation of yellow's airport-fee column changes between months.
+Reconciling the two is handled in [`src/pipeline/schema.py`](src/pipeline/schema.py)
+and enforced by a check, so a future schema change fails the run instead of
+silently producing a column of NULLs.
 
-Full reasoning, ownership and gaps: [`docs/source_map.md`](docs/source_map.md)
+Ownership, grain, gaps and the reasoning behind each source are in
+[`docs/source_map.md`](docs/source_map.md).
 
 ---
 
@@ -115,12 +117,12 @@ PYTHONPATH=src python -m pipeline.report
 python -m pytest
 ```
 
-Change the months, the 8 mph threshold or any abort limit in
-[`config/pipeline.yaml`](config/pipeline.yaml) — no code change needed.
+The months, the 8 mph threshold and every abort limit can be changed in
+[`config/pipeline.yaml`](config/pipeline.yaml) without touching code.
 
-> `data/` is gitignored: every byte is reproducible from the pipeline, and
-> `data/raw/manifest.json` records each input's source URL and SHA-256 so a
-> rebuild is verifiable.
+> `data/` is gitignored because every byte of it is reproducible from the
+> pipeline. `data/raw/manifest.json` records each input's source URL and
+> SHA-256, so any rebuild can be verified.
 
 ---
 
@@ -147,59 +149,61 @@ tests/                      30 tests: rule behaviour, idempotency, failure paths
 
 ---
 
-## 6. FDE judgement calls
+## 6. Key design decisions
 
-Three decisions shaped the output more than any code did.
+Three decisions shaped the output more than any individual piece of code.
 
-### A. Flag, never silently drop — and the March break that vindicated it
+### A. Flag, never silently drop
 
-No validation rule deletes a row. Each writes a boolean flag, and metrics select
-the population they are entitled to use (`is_valid_core`, `is_valid_zone`,
-`is_valid_fare`). Different metrics therefore have **different denominators**, and
-each published metric carries its own `trips` count.
+No validation rule deletes a row. Each rule writes a boolean flag, and each
+metric selects the population it is entitled to use (`is_valid_core`,
+`is_valid_zone`, `is_valid_fare`). Different metrics therefore have **different
+denominators**, and every published metric carries its own `trips` count.
 
-The payoff was not hypothetical. Missing `passenger_count` (rule **V08**) doubled
-in March 2024:
+This paid off in practice. Missing `passenger_count` values (rule **V08**)
+doubled in March 2024:
 
 | Jan | Feb | **Mar** | Apr | May | Jun |
 |---|---|---|---|---|---|
 | 5.8% | 7.3% | **12.9%** | 12.6% | 11.8% | 12.5% |
 
-`passenger_count` feeds **no** headline metric, so V08 was made **flag-only**. Had
-it been an exclusion rule — the instinctive choice for a 6%-null field — the
-pipeline would have begun discarding ~12% of trips in March, and **the KPI would
-have shifted mid-series for a reason having nothing to do with traffic.** The
-break would have been invisible in the headline number and near-impossible to
-diagnose months later.
+Because `passenger_count` feeds **no** headline metric, V08 was made
+**flag-only**. Excluding those rows would have been the instinctive choice for a
+field that was 6% null, but it would have caused the pipeline to discard about
+12% of trips from March onward. **The KPI would then have shifted mid-series for
+a reason unrelated to traffic.** That break would have been invisible in the
+headline number and very hard to diagnose months later.
 
-Because the rule only flags, the break surfaced in `m_data_quality` where it
-belongs, and the KPI stayed clean. *Dropping data you don't need is not free —
-it silently couples your metric to someone else's reporting habits.*
+Since the rule only flags, the change surfaced in `m_data_quality` where it
+belongs, and the KPI was unaffected. Dropping data that a metric does not need is
+not free, because it quietly ties the metric to someone else's reporting habits.
 
-### B. The KPI's level is arbitrary; its ranking is not
+### B. The KPI's level is arbitrary, but its ranking is not
 
 The 8 mph threshold is a judgement call, so its effect was measured rather than
-asserted:
+assumed:
 
 | Threshold | 6 mph | 7 mph | **8 mph** | 9 mph | 10 mph |
 |---|---|---|---|---|---|
 | Congested | 14.7% | 23.8% | **34.3%** | 45.0% | 55.0% |
 
-The level swings enormously. **But the borough ranking is identical at every
-threshold tested** — Manhattan > Brooklyn > Bronx > Queens at 6, 8 and 10 mph.
+The level varies widely, **but the borough ranking is identical at every
+threshold tested**: Manhattan, then Brooklyn, then the Bronx, then Queens at 6, 8
+and 10 mph.
 
-So the honest framing, stated wherever the KPI appears: **use it for ranking and
-for trend; do not quote the absolute percentage.** *"34% of trips are congested"
-is a fact about an 8 mph line, not about New York.* The decision this pipeline
-actually supports — which zones and hours to target — is robust to the one
-arbitrary number in it.
+The KPI should therefore be used **for ranking and for trend, not quoted as an
+absolute percentage.** A statement such as "34% of trips are congested" describes
+the 8 mph line more than it describes New York. The decision the pipeline
+supports, which zones and hours to target, holds regardless of where that line
+is drawn.
 
 ### C. Unknown zones are codes, not places
 
-Zones 264/265 mean "Unknown" and "Outside of NYC". Dropping those trips would
-understate citywide volume; keeping them as zones would invent a phantom borough
-in every report. Rule V06 excludes them from *geographic* metrics only — which is
-why `is_valid_zone` exists separately from `is_valid_core`.
+Zones 264 and 265 mean "Unknown" and "Outside of NYC". Dropping those trips would
+understate citywide volume, while treating them as real zones would add a
+phantom borough to every report. Rule V06 therefore excludes them from
+*geographic* metrics only, which is why `is_valid_zone` exists separately from
+`is_valid_core`.
 
 ---
 
@@ -207,19 +211,20 @@ why `is_valid_zone` exists separately from `is_valid_core`.
 
 | Property | How |
 |---|---|
-| **Idempotent** | Each month is a partition, removed and rewritten on rerun. A rerun cannot double-count. Proven by a test that reprocesses a month and asserts identical metrics. |
-| **Raw data immutable** | Downloads are atomic (`.part` → rename); `data/raw/` is never modified; every input carries a SHA-256. |
-| **Fails loudly** | 10 check families (C1–C10) + 8 rule abort limits. Any breach aborts that month and publishes **nothing** for it. |
-| **Fails partially** | In `--all`, one bad month doesn't block five good ones; the run exits non-zero. |
-| **Self-reconciling** | C9 asserts valid + excluded = total. C10 recomputes the KPI from the published mart and requires agreement. A trip cannot vanish between raw and mart without the run failing. |
-| **Auditable** | Every run writes `logs/run_summary_<ts>.json` — per-stage row counts, every check outcome, duration, git commit. |
+| **Idempotent** | Each month is a partition that is removed and rewritten on rerun, so a rerun cannot double-count. A test reprocesses a month and asserts that the metrics are identical. |
+| **Raw data immutable** | Downloads are atomic (`.part` then rename), `data/raw/` is never modified, and every input carries a SHA-256. |
+| **Fails loudly** | 10 check families (C1–C10) and 8 rule abort limits. Any breach aborts that month and publishes **nothing** for it. |
+| **Fails partially** | With `--all`, one bad month does not block the other five, and the run exits non-zero. |
+| **Self-reconciling** | C9 asserts that valid plus excluded rows equal the total. C10 recomputes the KPI from the published mart and requires agreement. A trip cannot disappear between raw data and the mart without the run failing. |
+| **Auditable** | Every run writes `logs/run_summary_<ts>.json` with per-stage row counts, every check outcome, the duration and the git commit. |
 | **Resumable** | `--from-stage` restarts mid-pipeline without re-downloading. |
 
-Guards against the specific bugs that silently corrupt metrics: **join fan-out**
-(C7 asserts the row count is unchanged across three LEFT JOINs), **schema drift**
-(C2), **mislabelled extracts** (C4), and **invalid rows defaulting to FALSE**
-(`is_congested` is NULL outside the valid population, so it can never be averaged
-in as "not congested").
+The pipeline also guards against the specific bugs that silently corrupt
+metrics:
+- **Join fan-out:** C7 asserts that the row count is unchanged across three LEFT JOINs.
+- **Schema drift:** C2.
+- **Mislabelled extracts:** C4.
+- **Invalid rows defaulting to FALSE:** `is_congested` is NULL outside the valid population, so an invalid trip can never be averaged in as "not congested".
 
 ```
 $ python -m pytest
@@ -228,23 +233,24 @@ $ python -m pytest
 
 ---
 
-## 8. What this cannot tell you
+## 8. Limitations
 
-Stated up front because it bounds every number above:
+These limits apply to every number above:
 
-- **Unmet demand is invisible.** Only *completed* trips are recorded — a zone
-  nobody will serve looks perfectly healthy.
-- **Taxis are a biased sample**, not a census: heavily Manhattan and airport, and
-  ride-hail (several times taxi volume) is absent entirely.
-- **No route data**, so we can rank *where* to look but never explain *why*
-  without fieldwork.
-- **Six months cannot separate trend from season** — the Jan→May rise needs 12
-  months before it should be called a trend.
-- **~2-month publication lag** makes this a planning instrument, not a live
-  monitor.
+- **Unmet demand is invisible.** Only *completed* trips are recorded, so a zone
+  that drivers avoid can look perfectly healthy.
+- **Taxis are a biased sample, not a census.** Trips are concentrated in
+  Manhattan and at the airports, and ride-hail (several times taxi volume) is
+  absent entirely.
+- **There is no route data**, so the pipeline can rank *where* to look but cannot
+  explain *why* congestion occurs without fieldwork.
+- **Six months cannot separate trend from season.** The January to May rise needs
+  12 months of data before it can be called a trend.
+- **TLC publishes data about two months late**, which makes this a planning
+  instrument rather than a live monitor.
 
-Full register, including the DST edge case and every assumption:
-[`docs/known_unknowns.md`](docs/known_unknowns.md)
+The full register, including the daylight-saving edge case and every assumption,
+is in [`docs/known_unknowns.md`](docs/known_unknowns.md).
 
 ---
 
@@ -256,5 +262,4 @@ Full register, including the DST edge case and every assumption:
 | [`docs/data_model.md`](docs/data_model.md) | Workflow state machine, ER diagram, derived-field choices |
 | [`docs/validation_rules.md`](docs/validation_rules.md) | All 8 rules with business rationale |
 | [`docs/known_unknowns.md`](docs/known_unknowns.md) | Known / Unknown / Assumption / Limitation |
-| [`docs/evidence_table.md`](docs/evidence_table.md) | Final metrics (generated, never hand-typed) |
-| [`docs/demo_script.md`](docs/demo_script.md) | Running order for the 3–5 minute walkthrough |
+| [`docs/evidence_table.md`](docs/evidence_table.md) | Final metrics (generated from the marts, never typed by hand) |

@@ -10,3 +10,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ipynb_checkpoints/
+
+# Personal presentation notes; kept locally, not part of the submission.
+docs/demo_script.md
